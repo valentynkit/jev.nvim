@@ -1,0 +1,16 @@
+jev.nvim is MIT licensed. See LICENSE.
+
+The treesitter patterns in queries/<lang>/jev.scm are copied from
+nvim-treesitter/nvim-treesitter-textobjects, specifically the @function.outer captures in
+queries/{lua,python,rust,go,ecma}/textobjects.scm, and are licensed under the Apache
+License 2.0:
+
+  Copyright nvim-treesitter contributors
+  Licensed under the Apache License, Version 2.0
+  https://github.com/nvim-treesitter/nvim-treesitter-textobjects/blob/main/LICENSE
+
+Changes from the originals: the captures were renamed into our own `jev` query group so
+the plugin does not depend on that repository, the ecma file was copied into each of
+javascript, typescript and tsx instead of using `; inherits:`, bare (arrow_function) was
+narrowed to arrows bound to a variable, Go's func_literal was dropped, and Rust's
+function_signature_item was dropped.
