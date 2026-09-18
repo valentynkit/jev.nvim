@@ -174,6 +174,29 @@ describe("the :Jev command", function()
     assert.equals(4, #vim.fn.getqflist()) -- errors.py, the buffer, not the glob
   end)
 
+  it("takes a quoted glob with spaces, and leaves an apostrophe alone", function()
+    local dir = vim.fn.tempname() .. " with spaces"
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({ "local function only_one(id)", "  return id", "end" }, dir .. "/one.lua")
+    jev.last = nil
+    jev.setup({ panel = false })
+    vim.cmd(('Jev %s "%s/*.lua"'):format(Q, dir))
+    H.wait(function()
+      return jev.last ~= nil
+    end, 20000)
+    assert.equals(1, #vim.fn.getqflist())
+    vim.fn.delete(dir, "rf")
+
+    -- A quote mid-question is an apostrophe, so this runs on the buffer, not a glob.
+    edit("fixtures/corpus/errors.py")
+    jev.last = nil
+    vim.cmd("Jev what doesn't validate input")
+    H.wait(function()
+      return jev.last ~= nil
+    end, 20000)
+    assert.equals(4, #vim.fn.getqflist())
+  end)
+
   it("says what is missing instead of raising", function()
     vim.cmd("enew")
     vim.bo.filetype = "cobol"

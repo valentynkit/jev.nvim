@@ -34,6 +34,8 @@ All notable changes to this project are documented here. The format follows
 - A glob matching more files than `confirm_above` asks before reading them, not only
   before sending them; the scan is synchronous.
 - A glob that resolves only to directories says so instead of "nothing matched".
+- A glob with spaces can be quoted when it closes the line, without a quote earlier in
+  the question being read as one.
 
 ### Added
 

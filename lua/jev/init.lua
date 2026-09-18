@@ -225,17 +225,33 @@ function M.ask(question, opts)
   })
 end
 
--- ponytail: the glob is the last whitespace-separated word when it looks like a path.
--- Ceiling: a question whose last word ends in a dot-extension would be mistaken for a
--- glob, so `--` ends the question explicitly and everything after it is the glob, spaces
--- included. `:Jev is the ratio a.b safe --` asks about a.b instead of globbing for it.
+-- ponytail: the glob is the last whitespace-separated word when it looks like a path,
+-- or a quoted path-looking word closing the line. Ceiling: a question whose last word
+-- ends in a dot-extension would be mistaken for a glob, so `--` ends the question
+-- explicitly and everything after it is the glob, spaces included.
+-- `:Jev is the ratio a.b safe --` asks about a.b instead of globbing for it.
+local function looks_like_path(word)
+  return word ~= "" and (word:find("[*/]") ~= nil or word:match("%.%w+$") ~= nil)
+end
+
 local function split_args(args)
   local question, rest = args:match("^(.-)%s+%-%-%s*(.*)$")
   if question then
     return vim.trim(question), rest ~= "" and rest or nil
   end
+  -- A quote closing the line is a glob with spaces in it. A quote anywhere else is an
+  -- apostrophe in the question ("what doesn't validate input"), so only the last
+  -- character counts, and what it wraps still has to look like a path.
+  local quote = args:sub(-1)
+  if quote == '"' or quote == "'" then
+    local open = args:sub(1, -2):match("()" .. quote .. "[^" .. quote .. "]*$")
+    local glob = open and args:sub(open + 1, -2) or ""
+    if open and open > 1 and args:sub(open - 1, open - 1):match("%s") and looks_like_path(glob) then
+      return vim.trim(args:sub(1, open - 1)), glob
+    end
+  end
   local last = args:match("(%S+)$")
-  if last and (last:find("[*/]") or last:match("%.%w+$")) and args:find("%s") then
+  if last and looks_like_path(last) and args:find("%s") then
     return vim.trim(args:sub(1, #args - #last)), last
   end
   return vim.trim(args), nil

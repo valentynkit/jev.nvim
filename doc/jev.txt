@@ -48,12 +48,15 @@ gives one message naming the missing thing. The plugin never raises.
         [glob], every file it resolves to, read with |readfile()| and never
         loaded as a buffer. The glob is recognised as the last whitespace
         separated argument when it contains `*` or `/`, or ends in a dot
-        extension. `--` ends the question explicitly: everything after it is
-        the glob, spaces included, and a trailing `--` means there is no glob
+        extension. A glob with spaces in it can be quoted, but only as the last
+        thing on the line: a quote anywhere else is an apostrophe in the
+        question. `--` ends the question explicitly, and everything after it is
+        the glob whatever it looks like; a trailing `--` means there is no glob
         at all. >
 
             :Jev functions that swallow errors
             :Jev builds a SQL query by concatenation lua/**/*.lua
+            :Jev where do we retry "src/deep path/**/*.ts"
             :Jev is the ratio a.b safe --
             :Jev where do we retry -- src/deep path/**/*.ts
 <
