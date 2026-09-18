@@ -124,7 +124,8 @@ budget ~
 panel ~
         The float in the top right showing the run: progress bar, functions and
         requests and in flight, estimated tokens and cost, elapsed and p50, and
-        the last three hits. Non-focusable, and it closes itself
+        the last three hits. When the run finishes those counters collapse to
+        `done`, the totals and the p50. Non-focusable, and it closes itself
         `panel_linger_ms` after the last batch. Default true.
 
                                                               *jev-virtual_text*

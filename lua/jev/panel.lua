@@ -31,24 +31,30 @@ local function lines_for(info, width)
   local out = {
     " jev  " .. info.question:sub(1, width - 8),
     " " .. blocks .. ("  %d/%d batches"):format(info.batches_done, info.batches_total),
-    ("  %d functions · %d requests · %d in flight"):format(info.units, info.requests, info.in_flight),
-    ("  ~%s tokens · %s"):format(tokens(info.tokens), money(info.cost)),
-    ("  %.1fs elapsed · p50 %dms"):format(info.elapsed_ms / 1000, info.p50),
   }
   local hl = {
     { 0, "Title" },
     { 1, "String", 1 + #blocks }, -- colour the bar, not the counter beside it
-    { 2, "Comment" },
-    { 3, "Comment" },
-    { 4, "Comment" },
   }
+  local function add(text, group)
+    out[#out + 1] = text
+    hl[#hl + 1] = { #out - 1, group }
+  end
+  -- In flight the three counters move independently and each wants its own line. Once
+  -- nothing is moving they collapse into the one line worth reading afterwards.
+  if info.done then
+    add(("  done · %d functions · %d requests"):format(info.units, info.requests), "JevHit")
+    add(("  %s · p50 %dms"):format(money(info.cost), info.p50), "JevHit")
+  else
+    add(("  %d functions · %d requests · %d in flight"):format(info.units, info.requests, info.in_flight), "Comment")
+    add(("  ~%s tokens · %s"):format(tokens(info.tokens), money(info.cost)), "Comment")
+    add(("  %.1fs elapsed · p50 %dms"):format(info.elapsed_ms / 1000, info.p50), "Comment")
+  end
   for _, hit in ipairs(info.recent) do
-    out[#out + 1] = ("  %.2f %s"):format(hit.p, hit.unit.name)
-    hl[#hl + 1] = { #out - 1, hit.p >= 0.9 and "JevHit" or "JevFaint" }
+    add(("  %.2f %s"):format(hit.p, hit.unit.name), hit.p >= 0.9 and "JevHit" or "JevFaint")
   end
   if info.note then
-    out[#out + 1] = "  " .. info.note
-    hl[#hl + 1] = { #out - 1, "WarningMsg" }
+    add("  " .. info.note, "WarningMsg")
   end
   return out, hl
 end
@@ -75,6 +81,9 @@ function M.open(question)
   -- Only nvim_open_win takes noautocmd; on 0.10 nvim_win_set_config raises on it.
   M.config.noautocmd = nil
   vim.wo[M.win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
+  -- A wrapped line would push the hits below the float's height and out of sight, so a
+  -- long line is truncated instead.
+  vim.wo[M.win].wrap = false
   M.render({
     question = question,
     units = 0, requests = 0, in_flight = 0, tokens = 0, cost = 0,

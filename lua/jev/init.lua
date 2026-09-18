@@ -172,11 +172,12 @@ function M.ask(question, opts)
   if opts.panel then
     panel.open(question)
   end
-  local function paint(stats, note)
+  local function paint(stats, note, done)
     if not opts.panel then
       return
     end
     panel.render({
+      done = done,
       question = question,
       units = #units,
       requests = stats.requests,
@@ -215,7 +216,7 @@ function M.ask(question, opts)
       elseif #qf.entries > 1 then
         vim.notify("jev: done. :JevSort to rank the list by probability")
       end
-      paint(stats)
+      paint(stats, nil, true)
       panel.close(opts.panel_linger_ms)
       M.last = stats
       if opts.on_done then
