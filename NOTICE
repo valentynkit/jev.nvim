@@ -10,7 +10,18 @@ License 2.0:
   https://github.com/nvim-treesitter/nvim-treesitter-textobjects/blob/main/LICENSE
 
 Changes from the originals: the captures were renamed into our own `jev` query group so
-the plugin does not depend on that repository, the ecma file was copied into each of
-javascript, typescript and tsx instead of using `; inherits:`, bare (arrow_function) was
-narrowed to arrows bound to a variable, Go's func_literal was dropped, and Rust's
-function_signature_item was dropped.
+the plugin does not depend on that repository, and the ecma file was copied into each of
+javascript, typescript and tsx instead of using `; inherits:`.
+
+Then, so that a unit is a function something binds a name to rather than any function
+node:
+
+  - ecma: bare (arrow_function) and bare (function_expression) are both narrowed to a
+    variable_declarator, a pair, or a class field. Two patterns were added for a function
+    one level deeper than its name, `const C = React.forwardRef(() => {...})` and the
+    `const x = (() => {...})()` idiom, both restricted to a block body so that
+    `useThing(s => s.value)` selectors are not units.
+  - lua: bare (function_definition) is narrowed the same way, to an assignment, a local
+    declaration or a table field.
+  - go: func_literal is dropped, except one bound by a var declaration.
+  - rust: function_signature_item is dropped, since a trait signature has no body.

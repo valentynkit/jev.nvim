@@ -1,0 +1,188 @@
+*jev.txt*  Ask the buffer a question, get a quickfix list.
+
+Author:  Valentyn Kit
+License: MIT (the treesitter patterns under queries/ are Apache 2.0, see NOTICE)
+
+==============================================================================
+CONTENTS                                                          *jev-contents*
+
+  1. Intro ................................. |jev-intro|
+  2. Requirements .......................... |jev-requirements|
+  3. Commands .............................. |jev-commands|
+  4. Configuration ......................... |jev-config|
+  5. Environment ........................... |jev-env|
+  6. How it works .......................... |jev-how|
+  7. Limits ................................ |jev-limits|
+
+==============================================================================
+1. INTRO                                                             *jev-intro*
+
+jev.nvim splits the current buffer (or every file a glob resolves to) into
+functions with treesitter, sends one noul per function to TypeSafe's Jev, and
+fills the quickfix list as the batches land. Each entry carries the probability
+that the function answers your question: >
+
+    0.93  handle_stripe_event
+<
+It reads the buffer, not the file, so unsaved edits are judged. Nothing blocks
+the UI: every response arrives through |vim.schedule()|.
+
+==============================================================================
+2. REQUIREMENTS                                               *jev-requirements*
+
+Neovim 0.10+, `curl` on $PATH, and a treesitter parser for the language you are
+asking about. Languages with a vendored query today: lua, python, rust, go,
+javascript, typescript, tsx.
+
+A missing key, a missing parser, a missing curl or a buffer with no functions
+gives one message naming the missing thing. The plugin never raises.
+
+==============================================================================
+3. COMMANDS                                                       *jev-commands*
+
+                                                                         *:Jev*
+:[range]Jev[!] {question} [glob]
+        Judge every function against {question}.
+
+        With no [glob], the current buffer, unsaved edits included. With a
+        [glob], every file it resolves to, read with |readfile()| and never
+        loaded as a buffer. The glob is recognised as the last whitespace
+        separated argument when it contains `*` or `/`, or ends in a dot
+        extension. `--` ends the question explicitly: everything after it is
+        the glob, spaces included, and a trailing `--` means there is no glob
+        at all. >
+
+            :Jev functions that swallow errors
+            :Jev builds a SQL query by concatenation lua/**/*.lua
+            :Jev is the ratio a.b safe --
+            :Jev where do we retry -- src/deep path/**/*.ts
+<
+        With a [range] (a visual selection, or `:10,40Jev`), only the functions
+        the range overlaps are judged. A range and a glob together are refused:
+        the range is line numbers in this buffer, the glob is other files.
+
+        With [!], the cost confirmation is skipped. Without it, a run wider
+        than |jev-confirm_above| functions prints its estimate and asks.
+
+        A run already in flight is not interrupted; the second `:Jev` says so
+        and does nothing.
+
+                                                                     *:JevSort*
+:JevSort
+        Sort the jev quickfix list by probability, descending. Runs
+        automatically when the last batch lands, but only if you have not moved
+        off the first entry yet, so the list never shifts under the cursor
+        while you walk it.
+
+                                                                    *:JevClear*
+:JevClear
+        Remove the virtual text and close the panel. The quickfix list stays.
+
+==============================================================================
+4. CONFIGURATION                                                    *jev-config*
+
+>lua
+    require("jev").setup({
+      threshold = 0.75,
+      confirm_above = 200,
+      concurrency = 4,
+      budget = 45000,
+      panel = true,
+      panel_linger_ms = 2000,
+      virtual_text = true,
+      pre_filter = nil,
+      repo = nil,
+    })
+<
+                                                                 *jev-threshold*
+threshold ~
+        Hits below it are marked `(below t)` in the list and get no virtual
+        text. They are never dropped. Default 0.75, from the sweep in
+        `scripts/measure.lua`.
+
+                                                             *jev-confirm_above*
+confirm_above ~
+        Functions, above which a run prints its estimate and asks with
+        |confirm()| before spending anything. `:Jev!` skips it. Default 200.
+
+                                                               *jev-concurrency*
+concurrency ~
+        Requests in flight. Default 4.
+
+                                                                    *jev-budget*
+budget ~
+        Estimated input tokens per request. Default 45000. A request the server
+        rejects as too big is bisected and both halves requeued.
+
+                                                                     *jev-panel*
+panel ~
+        The float in the top right showing the run: progress bar, functions and
+        requests and in flight, estimated tokens and cost, elapsed and p50, and
+        the last three hits. Non-focusable, and it closes itself
+        `panel_linger_ms` after the last batch. Default true.
+
+                                                              *jev-virtual_text*
+virtual_text ~
+        The probability as virtual text at the end of each hit's signature
+        line. Default true.
+
+                                                                *jev-pre_filter*
+pre_filter ~
+        A Lua pattern matched against the source and signature, or a
+        `fun(unit): boolean`. Runs before Jev sees anything, so it is both the
+        cost knob and the regex belt: >lua
+
+            pre_filter = "pcall"
+<
+        Default nil.
+
+                                                                      *jev-repo*
+repo ~
+        One line describing the repository, shipped once per request as shared
+        state. Defaults to the cwd name and the languages involved.
+
+==============================================================================
+5. ENVIRONMENT                                                         *jev-env*
+
+TYPESAFE_API_KEY    Your key. Required unless JEV_BASE_URL points somewhere
+                    that does not need one.
+JEV_BASE_URL        Override https://api.typesafe.ai: a gateway shim, the
+                    record/replay proxy, or the test fake.
+JEV_MODEL           Defaults to `jev-1.13.0`, pinned because the published
+                    threshold was measured against one model.
+JEV_CONCURRENCY     Defaults 4.
+JEV_ATTEMPTS        Defaults 3, under one shared deadline.
+JEV_TIMEOUT_MS      Defaults 20000, shared across the attempts of one request.
+
+==============================================================================
+6. HOW IT WORKS                                                        *jev-how*
+
+1. `vim.treesitter.query.get(lang, "jev")` over the buffer text or each glob
+   file. Never a second buffer.
+2. Each function becomes file, name, signature, doc and source, trimmed to
+   3450 characters.
+3. A session cache keyed on sha256 of the question and the unit source drops
+   everything unchanged since the last run.
+4. The rest is packed greedily under the token budget: shared state once, one
+   noul per function, `concurrency` requests in flight.
+5. Responses append to quickfix in arrival order, so |:cnext| is safe from the
+   first batch. One sort at the end, conditional on the cursor.
+6. Retries: at most `JEV_ATTEMPTS` attempts under one shared deadline, backoff
+   500ms then 2s, on 429 and 5xx only, honouring `retry-after`.
+
+Code owns counting, sorting, thresholds, byte ranges, the token estimate, cost
+arithmetic and retries. Jev only answers the one question per function.
+
+==============================================================================
+7. LIMITS                                                           *jev-limits*
+
+- One function at a time. A question about how two functions interact returns
+  the wrong list, because nothing in the request knows the other one exists.
+- Negated questions read badly. Phrase positively: "swallows an exception",
+  not "does not handle errors".
+- Seven languages. Anything else gets one message and no request.
+- The corpus behind the default threshold is ours, not yours. Re-run the sweep
+  on your own labels before trusting it.
+- No disk cache. Restarting Neovim forgets everything.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

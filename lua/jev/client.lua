@@ -90,8 +90,15 @@ function M.ask(body, opts, cb)
       end
       return done(nil, decoded, status)
     end
-    if status == 400 and raw:find("max_tokens_exceeded", 1, true) then
-      return done({ message = "batch over the token budget", status = status, too_big = true })
+    if status == 400 then
+      -- Read the field, not the whole body: the body carries the source we just sent, so
+      -- a unit that mentions max_tokens_exceeded in a comment must not look like one.
+      local ok, decoded = pcall(vim.json.decode, raw)
+      local detail = ok and type(decoded) == "table" and decoded.detail or nil
+      local kind = type(detail) == "table" and detail.error_type or detail
+      if type(kind) == "string" and kind:find("max_tokens_exceeded", 1, true) then
+        return done({ message = "batch over the token budget", status = status, too_big = true })
+      end
     end
 
     local retriable = status == 429 or status >= 500
@@ -114,7 +121,9 @@ function M.ask(body, opts, cb)
     end
     local args = curl_args(#payload)
     table.insert(args, "--max-time")
-    table.insert(args, string.format("%.1f", math.max(0.5, remaining / 1000)))
+    -- Never 0: curl reads --max-time 0 as no limit at all. Otherwise the shared deadline
+    -- is the deadline, down to the last 50ms of it.
+    table.insert(args, string.format("%.2f", math.max(0.05, remaining / 1000)))
     table.insert(args, M.endpoint())
     vim.system(args, { stdin = payload, text = true }, function(res)
       vim.schedule(function()

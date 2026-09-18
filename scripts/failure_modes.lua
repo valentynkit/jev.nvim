@@ -86,8 +86,16 @@ end, 50) then
   os.exit(1)
 end
 
-out.padded_delta = math.abs((out.base or 0) - (out.padded or 0))
-out.injected_delta = math.abs((out.clean or 0) - (out.injected or 0))
+-- A missing probe is a broken run, not a delta of zero: writing 0 here would publish
+-- "padding moved nothing" as a fact about an answer we never got.
+for _, pair in ipairs({ { "padded_delta", "base", "padded" }, { "injected_delta", "clean", "injected" } }) do
+  local a, b = out[pair[2]], out[pair[3]]
+  if type(a) ~= "number" or type(b) ~= "number" then
+    io.stderr:write(("failure_modes: no answer for %s or %s\n"):format(pair[2], pair[3]))
+    os.exit(1)
+  end
+  out[pair[1]] = math.abs(a - b)
+end
 vim.fn.writefile({ vim.json.encode(out) }, fixtures .. "/failure_modes.json")
 
 local names = vim.tbl_keys(out)

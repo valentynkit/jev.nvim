@@ -90,6 +90,11 @@ end
 --- The whole run. Never blocks the UI; every callback is already on the main loop.
 function M.ask(question, opts)
   opts = vim.tbl_extend("force", M.opts, opts or {})
+  -- One run at a time. Two overlapping runs share the quickfix list, the marks and the
+  -- panel, so the second one's :JevSort would rank two different questions together.
+  if M.busy then
+    return fail("a run is already in flight; wait for it or :JevClear")
+  end
   local why = client.preflight()
   if why then
     return fail(why)
@@ -115,6 +120,7 @@ function M.ask(question, opts)
     return
   end
 
+  M.busy = true
   marks.clear()
   qf.start(question)
   qf.open()
@@ -171,6 +177,7 @@ function M.ask(question, opts)
       paint(stats, "one batch failed, list is partial")
     end,
     on_done = function(stats)
+      M.busy = false
       if qf.untouched() then
         qf.sort(opts.threshold)
       elseif #qf.entries > 1 then
@@ -187,9 +194,14 @@ function M.ask(question, opts)
 end
 
 -- ponytail: the glob is the last whitespace-separated word when it looks like a path.
--- Ceiling: a question whose last word ends in a dot-extension is mistaken for a glob.
--- Upgrade path is an explicit `-- <glob>` separator if anyone ever hits it.
+-- Ceiling: a question whose last word ends in a dot-extension would be mistaken for a
+-- glob, so `--` ends the question explicitly and everything after it is the glob, spaces
+-- included. `:Jev is the ratio a.b safe --` asks about a.b instead of globbing for it.
 local function split_args(args)
+  local question, rest = args:match("^(.-)%s+%-%-%s*(.*)$")
+  if question then
+    return vim.trim(question), rest ~= "" and rest or nil
+  end
   local last = args:match("(%S+)$")
   if last and (last:find("[*/]") or last:match("%.%w+$")) and args:find("%s") then
     return vim.trim(args:sub(1, #args - #last)), last
@@ -201,6 +213,11 @@ function M.command(a)
   local question, glob = split_args(a.args)
   if question == "" then
     return fail("give it a question, for example :Jev functions that swallow errors")
+  end
+  -- A range is line numbers in this buffer; a glob is other files. Applying one to the
+  -- other keeps whichever functions happen to overlap those lines, which is nonsense.
+  if glob and a.range == 2 then
+    return fail("a range and a glob do not mix, pick one")
   end
   M.ask(question, {
     glob = glob,
@@ -216,6 +233,7 @@ end
 function M.clear()
   marks.clear()
   panel.close(0)
+  M.busy = false
 end
 
 return M

@@ -126,13 +126,16 @@ local report = {
   },
 }
 
-local headline = ("%.0f functions per request ($%.4f/query, %d ms p50, precision %.2f at t=%.2f, n=%d held out, 95%% CI %.2f-%.2f) (%d questions, threshold tuned on a disjoint %d, %s fixtures)"):format(
+-- "n=%d of %d held out": the interval is over the hits, which is the precision
+-- denominator, but the held-out set is the bigger number and the reader deserves both.
+local headline = ("%.0f functions per request ($%.4f/query, %d ms p50, precision %.2f at t=%.2f, n=%d of %d held out, 95%% CI %.2f-%.2f) (%d questions, threshold tuned on a disjoint %d, %s fixtures)"):format(
   report.functions_per_request,
   report.usd_per_query,
   report.p50_ms,
   hold.precision,
   threshold,
   hold.hits,
+  #rows.hold,
   lo,
   hi,
   #questions,

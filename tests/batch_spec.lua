@@ -112,21 +112,26 @@ describe("batch", function()
 
   it("keeps at most `concurrency` requests in flight", function()
     H.control({ delay_ms = 60 })
-    local peak = 0
     local units = corpus_units()
     local result = {}
+    -- peak_in_flight, not in_flight: a callback only ever sees the count after its own
+    -- request was subtracted, so sampling there passes even with the cap off by one.
     batch.run(units, { question = QUESTION, width = 4, concurrency = 3 }, {
-      on_batch = function(_, stats)
-        peak = math.max(peak, stats.in_flight)
-      end,
-      on_done = function()
-        result.done = true
+      on_done = function(stats)
+        result.stats = stats
       end,
     })
     H.wait(function()
-      return result.done
+      return result.stats ~= nil
     end, 30000)
-    assert.is_true(peak <= 3, "peak in flight was " .. peak)
+    assert.is_true(result.stats.peak_in_flight > 1, "never ran anything in parallel")
+    assert.is_true(result.stats.peak_in_flight <= 3, "peak in flight was " .. result.stats.peak_in_flight)
+  end)
+
+  it("charges one token per character, not per byte, outside ASCII", function()
+    -- fast-jev-compaction scans a JS string by code unit; a byte scan would charge
+    -- Cyrillic twice over and split batches that fit.
+    assert.equals(batch.estimate("!!!!!!"), batch.estimate("привіт"))
   end)
 
   it("medians in code, never in Jev", function()

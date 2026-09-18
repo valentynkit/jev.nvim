@@ -19,10 +19,17 @@ local function tokens(n)
   return n >= 1000 and ("%.1fk"):format(n / 1000) or tostring(n)
 end
 
-local function lines_for(info)
+-- Preferred width, clamped to whatever the editor actually is. A 40 column Zellij pane
+-- would otherwise put the float's left edge off screen (anchor NE, col = columns - 2).
+local function geometry()
+  local width = math.max(20, math.min(M.width, vim.o.columns - 4))
+  return width, math.max(width, vim.o.columns - 2)
+end
+
+local function lines_for(info, width)
   local blocks = bar(info.batches_done, info.batches_total)
   local out = {
-    " jev  " .. info.question:sub(1, M.width - 8),
+    " jev  " .. info.question:sub(1, width - 8),
     " " .. blocks .. ("  %d/%d batches"):format(info.batches_done, info.batches_total),
     ("  %d functions · %d requests · %d in flight"):format(info.units, info.requests, info.in_flight),
     ("  ~%s tokens · %s"):format(tokens(info.tokens), money(info.cost)),
@@ -50,12 +57,13 @@ function M.open(question)
   M.close(0)
   M.buf = vim.api.nvim_create_buf(false, true)
   vim.bo[M.buf].bufhidden = "wipe"
+  local width, col = geometry()
   M.config = {
     relative = "editor",
     anchor = "NE",
     row = 1,
-    col = vim.o.columns - 2,
-    width = M.width,
+    col = col,
+    width = width,
     height = 5,
     style = "minimal",
     border = "rounded",
@@ -64,6 +72,8 @@ function M.open(question)
     zindex = 60,
   }
   M.win = vim.api.nvim_open_win(M.buf, false, M.config)
+  -- Only nvim_open_win takes noautocmd; on 0.10 nvim_win_set_config raises on it.
+  M.config.noautocmd = nil
   vim.wo[M.win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
   M.render({
     question = question,
@@ -76,7 +86,9 @@ function M.render(info)
   if not (M.win and vim.api.nvim_win_is_valid(M.win)) then
     return
   end
-  local lines, hl = lines_for(info)
+  -- Re-read the geometry every frame; that is the whole VimResized handling.
+  M.config.width, M.config.col = geometry()
+  local lines, hl = lines_for(info, M.config.width)
   vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, lines)
   vim.api.nvim_buf_clear_namespace(M.buf, -1, 0, -1)
   for _, h in ipairs(hl) do
@@ -86,8 +98,9 @@ function M.render(info)
       hl_group = h[2],
     })
   end
-  M.config.height = #lines
-  vim.api.nvim_win_set_config(M.win, M.config)
+  M.config.height = math.max(1, math.min(#lines, vim.o.lines - 3))
+  -- A float that will not resize is a cosmetic problem; it must never take the run down.
+  pcall(vim.api.nvim_win_set_config, M.win, M.config)
 end
 
 function M.close(delay_ms)

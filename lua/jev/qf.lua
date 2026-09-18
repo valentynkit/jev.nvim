@@ -5,6 +5,7 @@ local M = {}
 
 M.title = "jev"
 M.entries = {}
+M.id = nil
 
 local function item_for(hit, threshold)
   local unit = hit.unit
@@ -24,6 +25,15 @@ end
 function M.start(question)
   M.entries = {}
   vim.fn.setqflist({}, " ", { title = M.title .. ": " .. question, items = {} })
+  -- Pin the list we just made. Batches land over seconds, and anything else that fills
+  -- quickfix meanwhile (:grep, LSP references, trouble) would otherwise take our appends
+  -- and then our replacing sort.
+  M.id = vim.fn.getqflist({ id = 0 }).id
+end
+
+--- Our list, if it still exists. It falls off the stack after ten newer ones.
+local function ours()
+  return M.id and M.id ~= 0 and vim.fn.getqflist({ id = M.id }).id == M.id
 end
 
 --- Append one batch, newest last. Cheap enough to call on every response.
@@ -33,8 +43,8 @@ function M.append(hits, threshold)
     M.entries[#M.entries + 1] = hit
     items[#items + 1] = item_for(hit, threshold)
   end
-  if #items > 0 then
-    vim.fn.setqflist({}, "a", { items = items })
+  if #items > 0 and ours() then
+    vim.fn.setqflist({}, "a", { id = M.id, items = items })
   end
 end
 
@@ -45,16 +55,21 @@ function M.sort(threshold)
     end
     return a.p > b.p
   end)
+  if not ours() then
+    return
+  end
   local items = vim.tbl_map(function(hit)
     return item_for(hit, threshold)
   end, M.entries)
-  local list = vim.fn.getqflist({ title = 0 })
-  vim.fn.setqflist({}, "r", { title = list.title, items = items })
+  vim.fn.setqflist({}, "r", { id = M.id, items = items })
 end
 
 --- True if the cursor is still on the first entry, so a sort is safe.
 function M.untouched()
-  return (vim.fn.getqflist({ idx = 0 }).idx or 1) <= 1
+  if not ours() then
+    return false
+  end
+  return (vim.fn.getqflist({ id = M.id, idx = 0 }).idx or 1) <= 1
 end
 
 function M.open()

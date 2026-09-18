@@ -42,10 +42,22 @@ function M.lang_for(path, filetype)
   return by_extension[(path or ""):match("%.([%w]+)$") or ""]
 end
 
+-- name for a declaration, key for an object literal entry, property for a class field.
+local name_fields = { "name", "key", "property" }
+
 local function field_name(node, text)
-  local f = node:field("name")[1]
-  return f and vim.treesitter.get_node_text(f, text) or nil
+  for _, field in ipairs(name_fields) do
+    local f = node:field(field)[1]
+    if f then
+      return vim.treesitter.get_node_text(f, text)
+    end
+  end
 end
+
+-- A call's argument list is not a binding, so stop the climb there. Without this a
+-- callback passed to vim.defer_fn is named "vim.defer_fn", which reads like a hit on the
+-- API rather than on the three lines inside it.
+local not_a_binding = { arguments = true, argument_list = true }
 
 -- A name field on the node, else on a child (python's decorated_definition, JS exports),
 -- else on an ancestor (an arrow function bound to a variable).
@@ -64,7 +76,7 @@ local function name_of(node, text)
   end
   local parent = node:parent()
   for _ = 1, 2 do
-    if not parent then
+    if not parent or not_a_binding[parent:type()] then
       break
     end
     n = field_name(parent, text)
@@ -102,20 +114,39 @@ end
 -- signature. Upgrade path is a per-language capture in the query.
 local function doc_of(lines, start_line, lang, source)
   if lang == "python" then
-    local d = source:match('\n%s*"""(.-)"""') or source:match("\n%s*'''(.-)'''")
+    -- r""", b""" and f""" are docstrings too, and are what any docstring holding a regex
+    -- or a backslash uses.
+    local d = source:match('\n%s*[rRbBfFuU]?[rRbBfF]?"""(.-)"""')
+      or source:match("\n%s*[rRbBfFuU]?[rRbBfF]?'''(.-)'''")
     if d then
       return vim.trim(d):sub(1, 400)
     end
   end
-  local acc = {}
   local i = start_line - 1
+  -- A /* */ block whose inner lines are not `*` prefixed (a fenced example inside JSDoc)
+  -- ends at a bare `*/`, which on its own is not documentation. Take the whole block.
+  if vim.trim(lines[i] or "") == "*/" then
+    local j = i
+    while j >= 1 and not lines[j]:find("/%*", 1) do
+      j = j - 1
+    end
+    if j >= 1 then
+      local block = table.concat(vim.list_slice(lines, j, i), " ")
+      return vim.trim((block:gsub("/%*+", ""):gsub("%*/", ""):gsub("%s+", " "))):sub(1, 400)
+    end
+  end
+  local acc = {}
   while i >= 1 and #acc < 5 do
     local t = vim.trim(lines[i])
-    if not is_comment(t) then
+    if t:match("^#%[") then
+      -- A Rust attribute is not documentation, but the doc comment can sit above it.
+      i = i - 1
+    elseif not is_comment(t) then
       break
+    else
+      table.insert(acc, 1, t)
+      i = i - 1
     end
-    table.insert(acc, 1, t)
-    i = i - 1
   end
   return table.concat(acc, " "):sub(1, 400)
 end

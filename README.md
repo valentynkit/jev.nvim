@@ -1,7 +1,7 @@
 # jev.nvim
 
 Ask the buffer a question, get a quickfix list. `__` functions per request, `__` a query,
-`__` ms to first hit, precision `__` (n=`__` held out, 95% CI `__`).
+`__` ms to first hit, precision `__` (n=`__` of `__` held out, 95% CI `__`).
 
 > The numbers above are unfilled on purpose. They get measured against recorded fixtures
 > once a key lands; `make measure` prints them and writes `measure.json`. Nothing here is

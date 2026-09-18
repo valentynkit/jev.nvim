@@ -11,7 +11,9 @@ end
 
 local function run_measure(fixtures_dir)
   return vim.system({
-    "nvim",
+    -- progpath, not "nvim": the child must be the binary running this spec, or it pairs
+    -- one version's runtime with another's.
+    vim.v.progpath,
     "--headless",
     "-u",
     "tests/minimal.lua",

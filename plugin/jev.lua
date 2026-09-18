@@ -8,7 +8,7 @@ require("jev.marks").setup_highlights()
 vim.api.nvim_create_user_command("Jev", function(a)
   require("jev").command(a)
 end, {
-  nargs = "+",
+  nargs = "*",
   bang = true,
   range = -1,
   desc = "Ask the buffer a question, get a quickfix list",

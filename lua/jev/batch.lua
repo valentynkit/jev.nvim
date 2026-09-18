@@ -8,7 +8,7 @@ local M = {}
 
 M.model = os.getenv("JEV_MODEL") or "jev-1.13.0"
 M.budget = 45000
-M.concurrency = tonumber(os.getenv("JEV_CONCURRENCY") or "") or 4
+M.concurrency = math.max(1, tonumber(os.getenv("JEV_CONCURRENCY") or "") or 4)
 -- every units.py, for the shared state plus the envelope and the free output slot.
 M.request_fixed_tokens = 262
 M.output_reserve_per_question = 25
@@ -34,7 +34,10 @@ function M.estimate(text)
       if s then
         tokens = tokens + (e - s + 1) / 2
       else
-        e = i
+        -- One token per codepoint, not per byte: Lua indexes bytes, so Cyrillic and CJK
+        -- would otherwise cost two or three times what the TypeScript original charges.
+        local b = text:byte(i)
+        e = i + (b < 0xC0 and 0 or b < 0xE0 and 1 or b < 0xF0 and 2 or 3)
         if not text:sub(i, i):match("%s") then
           tokens = tokens + 0.9
         end
@@ -143,6 +146,7 @@ function M.run(units, opts, cbs)
     splits = 0,
     failed = 0,
     in_flight = 0,
+    peak_in_flight = 0, -- sampled at dispatch; on_batch only ever sees the post-decrement
     batches_done = 0,
     batches_total = 0,
     est_tokens = 0,
@@ -199,16 +203,6 @@ function M.run(units, opts, cbs)
     active = active - 1
     stats.in_flight = active
     stats.requests = stats.requests + 1
-    -- A replayed body carries the latency the real endpoint gave, so a free replay
-    -- still reports honest milliseconds instead of this machine's loopback.
-    local replayed = type(data) == "table" and tonumber(data.recorded_latency_ms)
-    if replayed then
-      stats.recorded_latency = true
-    end
-    if replayed or (meta and meta.latency_ms) then
-      stats.latencies[#stats.latencies + 1] = replayed or meta.latency_ms
-    end
-
     if err and err.too_big then
       too_big(batch)
     elseif err then
@@ -219,6 +213,17 @@ function M.run(units, opts, cbs)
         cbs.on_error(err.message, stats)
       end
     else
+      -- Latency only from requests that answered. A failed one carries its retry backoff
+      -- in the same number, which would move p50 by seconds and call it Jev's time.
+      -- A replayed body carries the latency the real endpoint gave, so a free replay
+      -- still reports honest milliseconds instead of this machine's loopback.
+      local replayed = type(data) == "table" and tonumber(data.recorded_latency_ms)
+      if replayed then
+        stats.recorded_latency = true
+      end
+      if replayed or (meta and meta.latency_ms) then
+        stats.latencies[#stats.latencies + 1] = replayed or meta.latency_ms
+      end
       stats.batches_done = stats.batches_done + 1
       stats.est_tokens = stats.est_tokens + M.estimate(vim.json.encode(body))
       stats.input_tokens = stats.input_tokens + ((data.usage or {}).input_tokens or 0)
@@ -240,10 +245,11 @@ function M.run(units, opts, cbs)
   end
 
   pump = function()
-    while active < (opts.concurrency or M.concurrency) and #queue > 0 do
+    while active < math.max(1, opts.concurrency or M.concurrency) and #queue > 0 do
       local batch = table.remove(queue, 1)
       active = active + 1
       stats.in_flight = active
+      stats.peak_in_flight = math.max(stats.peak_in_flight, active)
       local body = M.body(opts.question, batch, opts.repo)
       send(body, function(err, data, meta)
         handle(batch, body, err, data, meta)

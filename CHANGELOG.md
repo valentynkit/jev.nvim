@@ -6,6 +6,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Inline callbacks are no longer judged as their own functions, and a function bound one
+  level below its name (`React.forwardRef`, `React.memo`, an IIFE, a Go `var f = func`)
+  now is. Object-literal and class-field functions get their real names.
+- Rust attributes, prefixed python docstrings and JSDoc blocks without per-line `*` no
+  longer produce wrong or empty documentation for a unit.
+- The session cache keys on the doc as well as the source, so editing only the comment
+  above a function re-asks it instead of replaying the old answer.
+- A second `:Jev` while one is in flight is refused instead of mixing two questions into
+  one quickfix list.
+- The quickfix list is addressed by id, so a `:grep` or an LSP reference list during a run
+  no longer receives the results, or gets replaced by the final sort.
+- `--` ends the question: `:Jev is the ratio a.b safe --` no longer globs for `a.b`. A
+  range together with a glob is refused.
+- Virtual text lands only on the exact file it was judged from, never on an open buffer
+  with a similar path.
+- The panel fits narrow windows and follows a resize.
+- The token estimator charges per character rather than per byte, so non-ASCII source is
+  not overcharged and split early.
+- `--max-time` honours a short shared deadline, `JEV_CONCURRENCY=0` no longer hangs, and
+  an over-budget 400 is recognised by its field rather than by a substring of the body.
+- p50 counts only requests that answered; a failed one reported its own retry backoff.
+- Neovim 0.10 works, which the documented floor had claimed without ever being run.
+
+### Added
+
+- CI on Neovim 0.10, 0.11, stable and nightly.
+- `doc/jev.txt`, so `:help jev` works, and `CONTRIBUTING.md`.
+
 ## [0.1.0] - 2026-09-18
 
 ### Added

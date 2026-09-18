@@ -10,13 +10,20 @@ function M.setup_highlights()
   vim.api.nvim_set_hl(0, "JevFaint", { link = "Comment", default = true })
 end
 
+-- Exact path match, not vim.fn.bufnr(): that one substring-matches, so a glob unit from
+-- errors.py lands its probability on an open vendor/errors.py.
 local function buffer_for(unit)
   if unit.bufnr and vim.api.nvim_buf_is_loaded(unit.bufnr) then
     return unit.bufnr
   end
-  local bufnr = vim.fn.bufnr(unit.file)
-  if bufnr > 0 and vim.api.nvim_buf_is_loaded(bufnr) then
-    return bufnr
+  if unit.file == "" then
+    return
+  end
+  local full = vim.fn.fnamemodify(unit.file, ":p")
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) and vim.api.nvim_buf_get_name(bufnr) == full then
+      return bufnr
+    end
   end
 end
 

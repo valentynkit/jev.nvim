@@ -103,6 +103,28 @@ describe("the panel and the virtual text", function()
     assert.equals(0, #marks.list(vim.api.nvim_get_current_buf()))
   end)
 
+  it("keeps the float on screen in a narrow pane", function()
+    local was = vim.o.columns
+    vim.o.columns = 40
+    panel.open("a question long enough to need the truncation")
+    local cfg = vim.api.nvim_win_get_config(panel.win)
+    assert.is_true(cfg.width <= 36, "width " .. cfg.width)
+    assert.is_true(cfg.col - cfg.width >= 0, ("col %d width %d"):format(cfg.col, cfg.width))
+    panel.close(0)
+    vim.o.columns = was
+  end)
+
+  it("never puts a probability on a buffer that only looks like the unit's file", function()
+    local decoy = vim.fn.tempname() .. "_errors.py"
+    vim.fn.writefile({ "def save_event():", "    pass" }, decoy)
+    local buf = vim.fn.bufadd(decoy)
+    vim.fn.bufload(buf)
+    marks.place({ p = 0.99, unit = { file = "errors.py", bufnr = 9999, lnum = 1, sig_lnum = 1 } }, 0.75)
+    assert.equals(0, #marks.list(buf))
+    vim.api.nvim_buf_delete(buf, { force = true })
+    vim.fn.delete(decoy)
+  end)
+
   it("leaves the buffer alone when virtual_text is off", function()
     vim.cmd.edit("fixtures/corpus/errors.py")
     jev.last = nil
