@@ -11,6 +11,8 @@ end, {
   nargs = "*",
   bang = true,
   range = -1,
+  complete = "file", -- the trailing argument is usually a glob
+
   desc = "Ask the buffer a question, get a quickfix list",
 })
 

@@ -59,6 +59,34 @@ describe("globs, filters and the cost gate", function()
     assert.equals(1, H.stats().questions)
   end)
 
+  it("asks before reading the files, not only before sending them", function()
+    local prompts = {}
+    local real = vim.fn.confirm
+    vim.fn.confirm = function(text)
+      prompts[#prompts + 1] = text
+      return 2 -- No
+    end
+    jev.last = nil
+    jev.ask(Q, { panel = false, glob = "fixtures/corpus/*", confirm_above = 1 })
+    vim.fn.confirm = real
+    -- The scan is synchronous, so the question about reading comes first and alone.
+    assert.equals(1, #prompts)
+    assert.is_truthy(prompts[1]:match("files to read and parse"))
+    assert.equals(0, H.stats().questions)
+  end)
+
+  it("says so when a glob matches only directories", function()
+    local notes = {}
+    local real = vim.notify
+    vim.notify = function(msg)
+      notes[#notes + 1] = msg
+    end
+    jev.ask(Q, { panel = false, glob = "fixtures/corpus" })
+    vim.notify = real
+    assert.equals(1, #notes)
+    assert.is_truthy(notes[1]:match("matched only directories"))
+  end)
+
   it("asks before a wide glob, and sends nothing on no", function()
     local asked = 0
     local real = vim.fn.confirm

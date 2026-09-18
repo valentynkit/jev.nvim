@@ -30,11 +30,16 @@ All notable changes to this project are documented here. The format follows
   an over-budget 400 is recognised by its field rather than by a substring of the body.
 - p50 counts only requests that answered; a failed one reported its own retry backoff.
 - Neovim 0.10 works, which the documented floor had claimed without ever being run.
+- `retry-after` is honoured in its HTTP-date form as well as delta-seconds.
+- A glob matching more files than `confirm_above` asks before reading them, not only
+  before sending them; the scan is synchronous.
+- A glob that resolves only to directories says so instead of "nothing matched".
 
 ### Added
 
 - CI on Neovim 0.10, 0.11, stable and nightly.
 - `doc/jev.txt`, so `:help jev` works, and `CONTRIBUTING.md`.
+- File completion on `:Jev`, for the trailing glob.
 
 ## [0.1.0] - 2026-09-18
 

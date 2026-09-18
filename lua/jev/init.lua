@@ -59,23 +59,38 @@ local function keep(unit, pre_filter)
   return (unit.source:find(pre_filter) or unit.signature:find(pre_filter)) ~= nil
 end
 
+--- Files a glob resolves to, directories dropped and counted.
+function M.files(glob)
+  local paths, dirs = {}, 0
+  for _, path in ipairs(vim.fn.glob(glob, false, true)) do
+    if vim.fn.isdirectory(path) == 1 then
+      dirs = dirs + 1
+    else
+      paths[#paths + 1] = path
+    end
+  end
+  return paths, dirs
+end
+
+local function units_in(paths, glob)
+  local units, misses = {}, {}
+  for _, path in ipairs(paths) do
+    local found, err = extract.from_file(path)
+    if err then
+      misses[#misses + 1] = err
+    end
+    vim.list_extend(units, found)
+  end
+  return units, #units == 0 and (misses[1] or ("nothing matched " .. glob)) or nil
+end
+
 --- Units for one invocation: the buffer, or every file a glob resolves to.
 function M.collect(glob)
   if not glob then
     local units, err = extract.from_buf(0)
     return units, err
   end
-  local units, misses = {}, {}
-  for _, path in ipairs(vim.fn.glob(glob, false, true)) do
-    if vim.fn.isdirectory(path) == 0 then
-      local found, err = extract.from_file(path)
-      if err then
-        misses[#misses + 1] = err
-      end
-      vim.list_extend(units, found)
-    end
-  end
-  return units, #units == 0 and (misses[1] or ("nothing matched " .. glob)) or nil
+  return units_in(M.files(glob), glob)
 end
 
 local function confirm(plan, opts)
@@ -100,7 +115,24 @@ function M.ask(question, opts)
     return fail(why)
   end
 
-  local units, err = M.collect(opts.glob)
+  local units, err
+  if opts.glob then
+    local paths, dirs = M.files(opts.glob)
+    if #paths == 0 then
+      return fail(dirs > 0 and (opts.glob .. " matched only directories") or ("nothing matched " .. opts.glob))
+    end
+    -- Reading and parsing every file is synchronous, so the question comes before the
+    -- scan, not after it. The cost gate below still covers what the scan turns up.
+    if #paths > opts.confirm_above and not opts.bang then
+      local ask_first = ("jev: %d files to read and parse. Scan them?"):format(#paths)
+      if vim.fn.confirm(ask_first, "&Yes\n&No", 2) ~= 1 then
+        return
+      end
+    end
+    units, err = units_in(paths, opts.glob)
+  else
+    units, err = extract.from_buf(0)
+  end
   if opts.range then
     units = vim.tbl_filter(function(u)
       return u.lnum <= opts.range[2] and u.end_lnum >= opts.range[1]

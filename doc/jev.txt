@@ -103,7 +103,10 @@ threshold ~
                                                              *jev-confirm_above*
 confirm_above ~
         Functions, above which a run prints its estimate and asks with
-        |confirm()| before spending anything. `:Jev!` skips it. Default 200.
+        |confirm()| before spending anything. The same number gates the scan
+        itself: a glob matching more files than this asks before reading and
+        parsing them, since that part is synchronous. `:Jev!` skips both.
+        Default 200.
 
                                                                *jev-concurrency*
 concurrency ~

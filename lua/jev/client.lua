@@ -49,6 +49,35 @@ local function curl_args(payload_len)
   return args
 end
 
+local months =
+  { Jan = 1, Feb = 2, Mar = 3, Apr = 4, May = 5, Jun = 6, Jul = 7, Aug = 8, Sep = 9, Oct = 10, Nov = 11, Dec = 12 }
+
+--- retry-after is delta-seconds or an HTTP-date (RFC 7231). Milliseconds, or nil.
+function M.retry_after_ms(value)
+  if not value or value == "" then
+    return nil
+  end
+  local seconds = tonumber(value)
+  if seconds then
+    return seconds * 1000
+  end
+  local day, mon, year, hour, min, sec = value:match("(%d+)%s+(%a+)%s+(%d+)%s+(%d+):(%d+):(%d+)")
+  if not day or not months[mon] then
+    return nil
+  end
+  -- Days since the epoch straight from the civil date (Hinnant's algorithm), rather than
+  -- os.time, which reads the fields as local time and is an hour out across a DST edge.
+  local y, m = tonumber(year), months[mon]
+  y = m <= 2 and y - 1 or y
+  local era = math.floor(y / 400)
+  local yoe = y - era * 400
+  local doy = math.floor((153 * (m + (m > 2 and -3 or 9)) + 2) / 5) + tonumber(day) - 1
+  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+  local days = era * 146097 + doe - 719468
+  local at = days * 86400 + tonumber(hour) * 3600 + tonumber(min) * 60 + tonumber(sec)
+  return math.max(0, (at - os.time()) * 1000)
+end
+
 -- curl writes the body, then our own last line: "<status> <retry-after>".
 local function split_tail(stdout)
   local at = stdout:find("\n[^\n]*$")
@@ -77,7 +106,7 @@ function M.ask(body, opts, cb)
   local function handle(res)
     local raw, tail = split_tail(res.stdout or "")
     local status = tonumber(tail:match("^(%d+)")) or 0
-    local retry_after = tonumber(tail:match("^%d+%s+([%d%.]+)"))
+    local retry_after = M.retry_after_ms(vim.trim(tail:match("^%d+%s+(.*)$") or ""))
 
     if res.code ~= 0 or status == 0 then
       local why = vim.split(res.stderr or "", "\n")[1]
@@ -104,7 +133,7 @@ function M.ask(body, opts, cb)
     local retriable = status == 429 or status >= 500
     local remaining = deadline - vim.uv.now()
     if retriable and attempt < attempts and remaining > 0 then
-      local wait = retry_after and retry_after * 1000 or (backoff[attempt] or backoff[#backoff])
+      local wait = retry_after or backoff[attempt] or backoff[#backoff]
       return vim.defer_fn(run, math.min(wait, remaining))
     end
     done({

@@ -82,6 +82,17 @@ describe("client", function()
     assert.is_true(r.meta.latency_ms < 2000)
   end)
 
+  it("reads retry-after as seconds or as an HTTP date", function()
+    assert.equals(2000, client.retry_after_ms("2"))
+    assert.is_nil(client.retry_after_ms(""))
+    assert.is_nil(client.retry_after_ms("soon"))
+    -- RFC 7231 allows the date form, and the header is always GMT.
+    local in_a_minute = os.date("!%a, %d %b %Y %H:%M:%S GMT", os.time() + 60)
+    local ms = client.retry_after_ms(in_a_minute)
+    assert.is_true(ms > 50000 and ms <= 61000, "got " .. tostring(ms))
+    assert.equals(0, client.retry_after_ms(os.date("!%a, %d %b %Y %H:%M:%S GMT", os.time() - 600)))
+  end)
+
   it("names the missing binary rather than raising", function()
     local path = vim.env.PATH
     vim.env.PATH = "/nonexistent"
