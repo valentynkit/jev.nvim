@@ -53,14 +53,18 @@ with no dotfiles.
 
 | t | what |
 |---|---|
-| 0.0 | `rg -n --no-heading 'except\|catch\|rescue\|pcall\|err != nil' *` |
-| 2.0 | 15 matches. None in Rust. Five of them are `connect_pool`, which handles its error. |
+| 0.0 | `rg -n --no-heading 'SELECT.*\+' *` |
+| 2.0 | 5 hits, all `+`, in go, py, js and ts. No `.rs`, no `.lua`. There are 12. |
 | 4.5 | `nvim errors.py` |
-| 6.5 | `:Jev swallows an exception without logging or rethrowing it *` |
-| 8.0 | panel top right, quickfix grows in waves, `0.94` lands on `save_event` |
+| 6.5 | `:Jev builds a SQL query by string concatenation *` |
+| 8.0 | panel top right, quickfix grows in waves, `0.96` lands on `find_user` |
 | 11 | `:cnext` mid-fill: the list keeps growing and the cursor holds |
-| 14 | `:JevSort`, then `:cc 2` |
-| 17 | panel collapses to the done line, then closes: probability, the bug, the ranked list |
+| 14 | `:JevSort`, then `:cc 3` (rust and typescript rank above python) |
+| 17 | panel collapses to the done line, then closes: probability, the query, the ranked list |
+
+The question is one of the three the corpus measures, so the example in the post and the
+precision in `measure.json` are about the same thing. The regex is a false negative rather
+than noise, which is the scarier failure: you searched, you got five, you stopped.
 
 The last frame is the still for the second post in the thread.
 

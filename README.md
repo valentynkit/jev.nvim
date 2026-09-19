@@ -13,10 +13,10 @@ Ask the buffer a question, get a quickfix list. `__` functions per request, `__`
 
 ![demo](demo.gif)
 
-The clip opens on the grep you write when you actually think about it. Over
-`fixtures/corpus`, `rg 'except|catch|rescue|pcall|err != nil'` returns 15 lines in five
-languages, none of them Rust, and five of them are `connect_pool`, which handles its error
-correctly. grep is shaped like the language; the question is not.
+The clip opens on the grep you write when you go looking for SQL injection. Over
+`fixtures/corpus`, `rg 'SELECT.*\+'` returns 5 hits, every one of them a `+`. There are
+12: Lua concatenates with `..`, Rust with `format!`, Python with an f-string, TypeScript
+with a template literal. grep is shaped like the language; the question is not.
 
 It is rendered against the test fake so it runs from a clean clone, which means the
 probabilities in it are fixtures rather than measurements. `demo/README.md` says exactly

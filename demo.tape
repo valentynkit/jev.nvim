@@ -43,14 +43,15 @@ Type "clear"
 Enter
 Show
 
-# The hook. This is the grep you write when you actually think about it: five patterns,
-# and it still cannot ask the question. Fifteen matches, none of them in Rust, and five
-# of them are connect_pool, which handles its error correctly.
+# The hook, and it is a false negative rather than noise. This is the regex you write when
+# you go looking for SQL injection, and it finds 5 of the 12 in this corpus: every one
+# built with +. It cannot see the Lua .., the Rust format!, the Python f-string or the
+# TypeScript template literal, because concatenation has a different shape per language.
 Sleep 500ms
-Type@22ms "rg -n --no-heading 'except|catch|rescue|pcall|err != nil' *"
+Type@22ms "rg -n --no-heading 'SELECT.*\+' *"
 Sleep 400ms
 Enter
-Sleep 2200ms
+Sleep 2600ms
 
 Type "nvim errors.py"
 Enter
@@ -60,13 +61,13 @@ Hide
 Type ":lua require('jev').setup({ width = 6, concurrency = 1, panel_linger_ms = 2500 })"
 Enter
 Sleep 400ms
-Type ":11"
+Type ":20"
 Enter
 Type "zt"
 Show
 
 Sleep 700ms
-Type ":Jev swallows an exception without logging or rethrowing it *"
+Type ":Jev builds a SQL query by string concatenation *"
 Sleep 600ms
 Enter
 
@@ -83,12 +84,11 @@ Type ":JevSort"
 Enter
 Sleep 1400ms
 
-# Land on the Python hit: the probability is sitting on its signature line, and the panel
-# has collapsed to the done line.
-Type ":cc 2"
+# Land on the Python hit: rust and typescript rank above it, so it is the third entry.
+Type ":cc 3"
 Enter
 Sleep 500ms
-# Scroll the bare `except: pass` into frame. It is the reason the number is 0.94.
+# Scroll the concatenated query into frame. It is the reason the number is 0.96.
 Type "zt"
 # The panel lingers a beat on the done line, then closes itself and leaves the frame the
 # post is cropped from: the probability on the signature, the bug under it, the ranked list.
