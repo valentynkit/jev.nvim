@@ -30,10 +30,12 @@ record:
 dump:
 	@$(NVIM) --headless -u tests/minimal.lua -l scripts/dump_units.lua fixtures/corpus
 
+# Renders both assets from one take: the GIF for the README, the square MP4 for X.
 demo:
-	@rm -rf .demo-frames demo.gif
+	@rm -rf .demo-frames demo.gif demo.mp4
 	vhs demo.tape
 	@[ -f demo.gif ] || ./scripts/gif.sh .demo-frames demo.gif
+	@./scripts/mp4.sh .demo-frames demo.mp4
 	@du -h demo.gif
 
 clean:

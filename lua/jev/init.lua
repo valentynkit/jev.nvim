@@ -94,7 +94,13 @@ function M.collect(glob)
 end
 
 local function confirm(plan, opts)
-  local line = ("jev: %d functions, %d requests, about $%.4f"):format(plan.units, plan.requests, plan.cost)
+  -- A buffer that fits one request is the common case, so "1 requests" would be the line
+  -- most people see most of the time.
+  local function n_of(count, word)
+    return ("%d %s%s"):format(count, word, count == 1 and "" or "s")
+  end
+  local line = ("jev: %s, %s, about $%.4f")
+    :format(n_of(plan.units, "function"), n_of(plan.requests, "request"), plan.cost)
   if opts.bang or plan.units <= opts.confirm_above then
     vim.notify(line)
     return true
@@ -172,11 +178,12 @@ function M.ask(question, opts)
   if opts.panel then
     panel.open(question)
   end
-  local function paint(stats, note)
+  local function paint(stats, note, done)
     if not opts.panel then
       return
     end
     panel.render({
+      done = done,
       question = question,
       units = #units,
       requests = stats.requests,
@@ -215,7 +222,7 @@ function M.ask(question, opts)
       elseif #qf.entries > 1 then
         vim.notify("jev: done. :JevSort to rank the list by probability")
       end
-      paint(stats)
+      paint(stats, nil, true)
       panel.close(opts.panel_linger_ms)
       M.last = stats
       if opts.on_done then
@@ -225,17 +232,33 @@ function M.ask(question, opts)
   })
 end
 
--- ponytail: the glob is the last whitespace-separated word when it looks like a path.
--- Ceiling: a question whose last word ends in a dot-extension would be mistaken for a
--- glob, so `--` ends the question explicitly and everything after it is the glob, spaces
--- included. `:Jev is the ratio a.b safe --` asks about a.b instead of globbing for it.
+-- ponytail: the glob is the last whitespace-separated word when it looks like a path,
+-- or a quoted path-looking word closing the line. Ceiling: a question whose last word
+-- ends in a dot-extension would be mistaken for a glob, so `--` ends the question
+-- explicitly and everything after it is the glob, spaces included.
+-- `:Jev is the ratio a.b safe --` asks about a.b instead of globbing for it.
+local function looks_like_path(word)
+  return word ~= "" and (word:find("[*/]") ~= nil or word:match("%.%w+$") ~= nil)
+end
+
 local function split_args(args)
   local question, rest = args:match("^(.-)%s+%-%-%s*(.*)$")
   if question then
     return vim.trim(question), rest ~= "" and rest or nil
   end
+  -- A quote closing the line is a glob with spaces in it. A quote anywhere else is an
+  -- apostrophe in the question ("what doesn't validate input"), so only the last
+  -- character counts, and what it wraps still has to look like a path.
+  local quote = args:sub(-1)
+  if quote == '"' or quote == "'" then
+    local open = args:sub(1, -2):match("()" .. quote .. "[^" .. quote .. "]*$")
+    local glob = open and args:sub(open + 1, -2) or ""
+    if open and open > 1 and args:sub(open - 1, open - 1):match("%s") and looks_like_path(glob) then
+      return vim.trim(args:sub(1, open - 1)), glob
+    end
+  end
   local last = args:match("(%S+)$")
-  if last and (last:find("[*/]") or last:match("%.%w+$")) and args:find("%s") then
+  if last and looks_like_path(last) and args:find("%s") then
     return vim.trim(args:sub(1, #args - #last)), last
   end
   return vim.trim(args), nil

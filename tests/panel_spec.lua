@@ -44,9 +44,12 @@ describe("the panel and the virtual text", function()
     end, 20000)
     local final = panel_lines()
     assert.is_truthy(final[2]:match("4/4 batches"))
+    -- Done collapses the three live counters into two, so the panel gets shorter.
+    assert.is_truthy(final[3]:match("^%s+done · 4 functions · 4 requests$"), final[3])
+    assert.is_truthy(final[4]:match("^%s+%$[%d%.]+ · p50 %d+ms$"), final[4])
     -- The tail is the three most recent hits, newest first, so the last unit is on top.
-    assert.is_truthy(final[6]:match("^%s+0%.%d%d connect_pool$"), final[6])
-    assert.equals(8, #final)
+    assert.is_truthy(final[5]:match("^%s+0%.%d%d connect_pool$"), final[5])
+    assert.equals(7, #final)
     panel.close(0)
   end)
 

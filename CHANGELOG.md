@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- When a run finishes, the panel's three live counters collapse into `done`, the totals
+  and the p50, which is the line worth reading once nothing is moving. The float no longer
+  wraps, so a long line truncates instead of pushing the hits out of sight.
+- Quickfix entries carry no `type`. Every row had the same "info", five columns of nothing
+  on a row whose payload is the probability and the name.
+
 ### Fixed
 
 - Inline callbacks are no longer judged as their own functions, and a function bound one
@@ -34,6 +42,8 @@ All notable changes to this project are documented here. The format follows
 - A glob matching more files than `confirm_above` asks before reading them, not only
   before sending them; the scan is synchronous.
 - A glob that resolves only to directories says so instead of "nothing matched".
+- A glob with spaces can be quoted when it closes the line, without a quote earlier in
+  the question being read as one.
 
 ### Added
 

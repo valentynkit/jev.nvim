@@ -13,7 +13,9 @@ local function item_for(hit, threshold)
   if hit.p < threshold then
     text = text .. "  (below t)"
   end
-  local item = { lnum = unit.lnum, col = unit.col + 1, text = text, type = "I" }
+  -- No `type`: every entry would carry the same "info", five columns of nothing on a row
+  -- whose payload is the probability and the name.
+  local item = { lnum = unit.lnum, col = unit.col + 1, text = text }
   if unit.bufnr and vim.api.nvim_buf_is_valid(unit.bufnr) then
     item.bufnr = unit.bufnr
   else
