@@ -15,6 +15,12 @@ local function money(usd)
   return usd < 0.01 and ("$%.4f"):format(usd) or ("$%.2f"):format(usd)
 end
 
+-- A buffer that fits one request is the common case, so "1 requests" would be on screen
+-- more often than not.
+local function n_of(count, word)
+  return ("%d %s%s"):format(count, word, count == 1 and "" or "s")
+end
+
 local function tokens(n)
   return n >= 1000 and ("%.1fk"):format(n / 1000) or tostring(n)
 end
@@ -43,10 +49,11 @@ local function lines_for(info, width)
   -- In flight the three counters move independently and each wants its own line. Once
   -- nothing is moving they collapse into the one line worth reading afterwards.
   if info.done then
-    add(("  done · %d functions · %d requests"):format(info.units, info.requests), "JevHit")
+    add(("  done · %s · %s"):format(n_of(info.units, "function"), n_of(info.requests, "request")), "JevHit")
     add(("  %s · p50 %dms"):format(money(info.cost), info.p50), "JevHit")
   else
-    add(("  %d functions · %d requests · %d in flight"):format(info.units, info.requests, info.in_flight), "Comment")
+    add(("  %s · %s · %d in flight")
+      :format(n_of(info.units, "function"), n_of(info.requests, "request"), info.in_flight), "Comment")
     add(("  ~%s tokens · %s"):format(tokens(info.tokens), money(info.cost)), "Comment")
     add(("  %.1fs elapsed · p50 %dms"):format(info.elapsed_ms / 1000, info.p50), "Comment")
   end

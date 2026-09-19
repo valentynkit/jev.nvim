@@ -94,7 +94,13 @@ function M.collect(glob)
 end
 
 local function confirm(plan, opts)
-  local line = ("jev: %d functions, %d requests, about $%.4f"):format(plan.units, plan.requests, plan.cost)
+  -- A buffer that fits one request is the common case, so "1 requests" would be the line
+  -- most people see most of the time.
+  local function n_of(count, word)
+    return ("%d %s%s"):format(count, word, count == 1 and "" or "s")
+  end
+  local line = ("jev: %s, %s, about $%.4f")
+    :format(n_of(plan.units, "function"), n_of(plan.requests, "request"), plan.cost)
   if opts.bang or plan.units <= opts.confirm_above then
     vim.notify(line)
     return true

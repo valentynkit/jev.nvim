@@ -2,3 +2,14 @@
 measure.json
 .demo-frames/
 demo.mp4
+
+# Internal. These stay on disk and out of the public repo: agent instructions and private
+# paths, the build log, the review rounds, the session prompts, the lab contract, the
+# competitive research and the launch copy. docs/design.md is the public distillation.
+CLAUDE.md
+CONTEXT.md
+REVIEW-*.md
+sessions/
+docs/SHARED.md
+docs/launch.md
+docs/research/
